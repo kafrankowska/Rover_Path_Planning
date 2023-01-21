@@ -1,3 +1,14 @@
+import numpy as np 
+import matplotlib.pyplot as plt
+import math
+from matplotlib.patches import Patch
+from matplotlib.colors import ListedColormap
+from matplotlib import colors
+import os 
+from IPython.display import HTML
+from matplotlib import animation
+from time import time
+
 class AStarPlanner:
 
     def __init__(self, resolution, rr, obstacle_map= None, 
@@ -18,6 +29,10 @@ class AStarPlanner:
         self.x_width, self.y_width = 0, 0
         self.motion = self.get_motion_model()
 
+        self.iterations = 0
+        self.path_length = 0
+        self.exec_time = 0
+        
         self.obstacle_map = obstacle_map
         self.get_og_map_info(obstacle_map)
         
@@ -40,6 +55,16 @@ class AStarPlanner:
             self.step = step
             self.out_path = out_path
             self.export_imgs = export_imgs
+    
+    def get_statistics(self):
+        stats = {
+            'Map width [m]': self.x_width*self.resolution,
+            'Map height [m]': self.y_width*self.resolution,
+            'Path length [m]': round(self.path_length,2),
+            'Execution time [s]': round(self.exec_time,4),
+            'Algorythm iterations [-]': self.iterations
+        }
+        return stats
     
     def create_figure(self):
         
@@ -66,7 +91,7 @@ class AStarPlanner:
             #plt.pcolormesh(safe_slope, cmap='Greys')
             #plt.scatter(xi,yi, cmap='Greys')
 
-            self.ax.imshow(occupancy_grid, cmap=cmp)
+            self.ax.imshow(self.obstacle_map, cmap=cmp)
 
             plt.title("Punkt startu i mety dla trasy", fontsize=14)
             plt.xlabel("Kierunek x [m]", fontsize=10)
@@ -89,24 +114,9 @@ class AStarPlanner:
 
             end_point = self.ax.plot(self.gy, self.gx, marker="X", label='Punkt końcowy', 
                                 markersize=12, markeredgecolor='b',markerfacecolor='b') # End point plot )
-            ax.grid(True)
-            ax.axis("equal")
-            
-#             self.fig = plt.figure(figsize=(10,10), dpi=120)
-#             self.ax = plt.subplot(1,1,1)   
-#             self.ax.imshow(self.obstacle_map, cmap='Greys')
-#             # set up the subplots as needed
-#             self.pts, = self.ax.plot([], [], 'g.', ms=6)
-#             self.path, = self.ax.plot([], [], 'r-', ms=8)
-#             self.ax.plot(self.sy, self.sx, "or", ms=12)
-#             self.ax.plot(self.gy, self.gx, "xb", ms=12)
-#             self.ax.grid(True)
-#             self.ax.set_xlim((self.min_x, self.max_x))            
-#             self.ax.set_ylim((self.min_y, self.max_y))
-#             self.ax.set_xlabel('Kierunek X')
-#             self.ax.set_ylabel('Kierunek Y')
-       # ax.set_title('Planowanie trasy')
-        
+            self.ax.grid(True)
+            self.ax.axis("equal")
+
             self.txt_title = self.ax.set_title('')
 
     def ani_init(self):
@@ -152,7 +162,7 @@ class AStarPlanner:
             #plt.pcolormesh(safe_slope, cmap='Greys')
             #plt.scatter(xi,yi, cmap='Greys')
 
-            ax.imshow(occupancy_grid, cmap=cmp)
+            ax.imshow(self.obstacle_map, cmap=cmp)
 
             plt.title("Wynik działania algorytmu A*", fontsize=14)
             plt.xlabel("Kierunek x [m]", fontsize=10)
@@ -207,7 +217,7 @@ class AStarPlanner:
             #plt.pcolormesh(safe_slope, cmap='Greys')
             #plt.scatter(xi,yi, cmap='Greys')
 
-            ax.imshow(occupancy_grid, cmap=cmp)
+            ax.imshow(self.obstacle_map, cmap=cmp)
 
             plt.title("Punkt startu i mety dla trasy", fontsize=14)
             plt.xlabel("Kierunek x [m]", fontsize=10)
@@ -331,6 +341,8 @@ class AStarPlanner:
             rx: x position list of the final path
             ry: y position list of the final path
         """
+        t0 = time()
+        
         if sx is None:
             sx = self.sx
             sy = self.sy
@@ -348,7 +360,7 @@ class AStarPlanner:
         open_set[self.calc_grid_index(start_node)] = start_node
 
         while 1:
-            
+            self.iterations += 1
             if len(open_set) == 0:
                 print("Open set is empty..")
                 break
@@ -403,9 +415,16 @@ class AStarPlanner:
                         open_set[n_id] = node
                   #      print('ID: {} \n Best path set: {}'.format(n_id,open_set[n_id]))
 
-            
+        
         self.rx, self.ry = self.calc_final_path(goal_node, closed_set)
         
+        t1 = time()
+        self.exec_time = t1-t0
+        
+        for i in range(1,len(self.rx)):
+            dist = math.hypot(self.rx[i] - self.rx[i-1], self.ry[i] - self.ry[i-1])
+            self.path_length += dist * self.resolution
+            
         if self.show_animation:
             self.anim = self.create_animation()
 
