@@ -1,24 +1,7 @@
-"""
-
-A* grid planning
-
-author: Atsushi Sakai(@Atsushi_twi)
-        Nikos Kanargias (nkana@tee.gr)
-
-See Wikipedia article (https://en.wikipedia.org/wiki/A*_search_algorithm)
-
-"""
-
-import math
-
-import matplotlib.pyplot as plt
-
-show_animation = True
-
-
 class AStarPlanner:
 
-    def __init__(self, ox, oy, resolution, rr, obstacle_map= None):
+    def __init__(self, resolution, rr, obstacle_map= None, 
+                 show_animation=True, step=50, export_imgs=True, out_path='../dataset'):
         """
         Initialize grid map for a star planning
 
@@ -34,24 +17,307 @@ class AStarPlanner:
         self.max_x, self.max_y = 0, 0
         self.x_width, self.y_width = 0, 0
         self.motion = self.get_motion_model()
-        if obstacle_map is not None:
-            self.obstacle_map = obstacle_map
+
+        self.obstacle_map = obstacle_map
+        self.get_og_map_info(obstacle_map)
+        
+        self.show_animation = show_animation
+        if self.show_animation:
+            self.fig = None
+            self.ax = None
+            self.pts = None
+            self.x_plts = []
+            self.y_plts = []
+            self.txt_title = None
+            self.anim = None
+            self.sx = 0
+            self.sy = 0
+            self.gx = 0
+            self.gy = 0
+            self.rx = None
+            self.ry = None
+            self.path = None
+            self.step = step
+            self.out_path = out_path
+            self.export_imgs = export_imgs
+    
+    def create_figure(self):
+        
+        danger_color = (0.3, 0.3, 0.3, 0.6)
+        safe_color = (0.9, 1, 0.9, 0.1)
+
+        markers_color = (0.92, 0.7, 0, 1)
+
+        font = {'family': "monospace",
+            'color':  (0.92, 0.7, 0, 1),
+            'weight': 'bold',
+            'size': 10,
+            }
+
+
+        cmp=ListedColormap([danger_color, safe_color])
+        with plt.style.context('ggplot'):
+                        
+            self.fig = plt.figure(figsize=(10,10), dpi=120)
+            self.ax = plt.subplot(1,1,1)   
+            xi = np.arange(self.min_x, self.max_x, 1) * self.resolution # Grid in meters
+            yi = np.arange(self.min_y, self.max_y, 1) * self.resolution # Grid in meters
+            #Z = 
+            #plt.pcolormesh(safe_slope, cmap='Greys')
+            #plt.scatter(xi,yi, cmap='Greys')
+
+            self.ax.imshow(occupancy_grid, cmap=cmp)
+
+            plt.title("Punkt startu i mety dla trasy", fontsize=14)
+            plt.xlabel("Kierunek x [m]", fontsize=10)
+            plt.ylabel("Kierunek Y [m]", fontsize=10)
+            self.ax.invert_yaxis()
+
+            locs_x = (np.arange(self.min_x, self.max_x, step=self.step)) 
+            labels_x = locs_x/2
+            plt.xticks(ticks=locs_x, labels=labels_x)
+
+            locs_y = (np.arange(self.min_y, self.max_y, step=self.step)) 
+            labels_y = locs_y/2
+            plt.yticks(ticks=locs_y, labels=labels_y)
+            
+            self.pts, = self.ax.plot([], [], 'g.', ms=6)
+            self.path, = self.ax.plot([], [], 'r-', ms=8)
+
+            start_point = self.ax.plot(self.sy, self.sx, marker="H", markeredgecolor=markers_color,
+                                markersize=12, markerfacecolor=markers_color, label='Punkt startowy') # Start point plot 
+
+            end_point = self.ax.plot(self.gy, self.gx, marker="X", label='Punkt końcowy', 
+                                markersize=12, markeredgecolor='b',markerfacecolor='b') # End point plot )
+            ax.grid(True)
+            ax.axis("equal")
+            
+#             self.fig = plt.figure(figsize=(10,10), dpi=120)
+#             self.ax = plt.subplot(1,1,1)   
+#             self.ax.imshow(self.obstacle_map, cmap='Greys')
+#             # set up the subplots as needed
+#             self.pts, = self.ax.plot([], [], 'g.', ms=6)
+#             self.path, = self.ax.plot([], [], 'r-', ms=8)
+#             self.ax.plot(self.sy, self.sx, "or", ms=12)
+#             self.ax.plot(self.gy, self.gx, "xb", ms=12)
+#             self.ax.grid(True)
+#             self.ax.set_xlim((self.min_x, self.max_x))            
+#             self.ax.set_ylim((self.min_y, self.max_y))
+#             self.ax.set_xlabel('Kierunek X')
+#             self.ax.set_ylabel('Kierunek Y')
+       # ax.set_title('Planowanie trasy')
+        
+            self.txt_title = self.ax.set_title('')
+
+    def ani_init(self):
+        self.pts.set_data([], [])
+        self.path.set_data([], [])
+        return self.pts,self.path
+    
+    def animate(self, n):
+        if n<=len(self.x_plts):
+            self.pts.set_data(self.y_plts[:n],self.x_plts[:n])
         else:
-            self.obstacle_map = None
-            self.calc_obstacle_map(ox, oy)
+            if self.rx is not None:
+                self.path.set_data(self.ry[:n-len(self.x_plts)],self.rx[:n-len(self.x_plts)])
+        self.txt_title.set_text('Algorytm krok numer = {0:4d}'.format(n))
+        return self.pts,self.path
+    
+    def create_animation(self):
+        self.create_figure()
+        self.anim = animation.FuncAnimation(self.fig, self.animate, init_func=self.ani_init,
+                                            frames=len(self.x_plts)+len(self.rx), interval=10, blit=True)
+        return self.anim
+    
+    def plot_searched_points(self):
+        
+        danger_color = (0.3, 0.3, 0.3, 0.6)
+        safe_color = (0.9, 1, 0.9, 0.1)
 
-    class Node:
-        def __init__(self, x, y, cost, parent_index):
-            self.x = x  # index of grid
-            self.y = y  # index of grid
-            self.cost = cost
-            self.parent_index = parent_index
+        markers_color = (0.92, 0.7, 0, 1)
 
-        def __str__(self):
-            return str(self.x) + "," + str(self.y) + "," + str(
-                self.cost) + "," + str(self.parent_index)
+        font = {'family': "monospace",
+            'color':  (0.92, 0.7, 0, 1),
+            'weight': 'bold',
+            'size': 10,
+            }
 
-    def planning(self, sx, sy, gx, gy):
+
+        cmp=ListedColormap([danger_color, safe_color])
+        with plt.style.context('ggplot'):
+            fig, ax = plt.subplots(figsize=(10,10), dpi=144)
+            xi = np.arange(self.min_x, self.max_x, 1) * self.resolution # Grid in meters
+            yi = np.arange(self.min_y, self.max_y, 1) * self.resolution # Grid in meters
+            #Z = 
+            #plt.pcolormesh(safe_slope, cmap='Greys')
+            #plt.scatter(xi,yi, cmap='Greys')
+
+            ax.imshow(occupancy_grid, cmap=cmp)
+
+            plt.title("Wynik działania algorytmu A*", fontsize=14)
+            plt.xlabel("Kierunek x [m]", fontsize=10)
+            plt.ylabel("Kierunek Y [m]", fontsize=10)
+            ax.invert_yaxis()
+
+            locs_x = (np.arange(self.min_x, self.max_x, step=self.step)) 
+            labels_x = locs_x/2
+            plt.xticks(ticks=locs_x, labels=labels_x)
+
+            locs_y = (np.arange(self.min_y, self.max_y, step=self.step)) 
+            labels_y = locs_y/2
+            plt.yticks(ticks=locs_y, labels=labels_y)
+
+            search_point = ax.plot(self.y_plts, self.x_plts,'g.', ms=6)
+            start_point = ax.plot(self.sy, self.sx, marker="H", markeredgecolor=markers_color,
+                                markersize=12, markerfacecolor=markers_color, label='Punkt startowy') # Start point plot 
+
+            end_point = ax.plot(self.gy, self.gx, marker="X", label='Punkt końcowy', 
+                                markersize=12, markeredgecolor='b',markerfacecolor='b') # End point plot )
+            
+            path_plot = ax.plot(self.ry, self.rx, "r-", ms=8)
+            
+            ax.grid(True)
+            ax.axis("equal")
+            
+            if self.export_imgs:
+                out_path = os.path.join(self.out_path, 'searched_points.jpeg')
+                plt.savefig(out_path)
+        plt.show()
+        
+    def plot_start_end_points(self):
+
+        danger_color = (0.3, 0.3, 0.3, 0.6)
+        safe_color = (0.9, 1, 0.9, 0.1)
+
+        markers_color = (0.92, 0.7, 0, 1)
+
+        font = {'family': "monospace",
+            'color':  (0.92, 0.7, 0, 1),
+            'weight': 'bold',
+            'size': 10,
+            }
+
+
+        cmp=ListedColormap([danger_color, safe_color])
+        with plt.style.context('ggplot'):
+            fig, ax = plt.subplots(figsize=(10,10), dpi=144)
+            xi = np.arange(self.min_x, self.max_x, 1) * self.resolution # Grid in meters
+            yi = np.arange(self.min_y, self.max_y, 1) * self.resolution # Grid in meters
+            #Z = 
+            #plt.pcolormesh(safe_slope, cmap='Greys')
+            #plt.scatter(xi,yi, cmap='Greys')
+
+            ax.imshow(occupancy_grid, cmap=cmp)
+
+            plt.title("Punkt startu i mety dla trasy", fontsize=14)
+            plt.xlabel("Kierunek x [m]", fontsize=10)
+            plt.ylabel("Kierunek Y [m]", fontsize=10)
+            ax.invert_yaxis()
+
+            locs_x = (np.arange(self.min_x, self.max_x, step=self.step)) 
+            labels_x = locs_x/2
+            plt.xticks(ticks=locs_x, labels=labels_x)
+
+            locs_y = (np.arange(self.min_y, self.max_y, step=self.step)) 
+            labels_y = locs_y/2
+            plt.yticks(ticks=locs_y, labels=labels_y)
+
+
+            start_point = ax.plot(self.sy, self.sx, marker="H", markeredgecolor=markers_color,
+                                markersize=12, markerfacecolor=markers_color, label='Punkt startowy') # Start point plot 
+
+            end_point = ax.plot(self.gy, self.gx, marker="X", label='Punkt końcowy', 
+                                markersize=12, markeredgecolor='b',markerfacecolor='b') # End point plot )
+            ax.grid(True)
+            ax.axis("equal")
+            
+            if self.export_imgs:
+                out_path = os.path.join(self.out_path, 'start_end_points.jpeg')
+                plt.savefig(out_path)
+        plt.show()
+      
+    def get_og_map_info(self, og_map):
+            self.max_x = round(og_map.shape[0])
+            self.max_y = round(og_map.shape[1])
+            self.x_width = round(self.max_x - self.min_x)
+            self.y_width = round(self.max_y - self.min_y)
+    
+    @staticmethod
+    def get_motion_model():
+        # dx, dy, cost
+        motion = [[1, 0, 1],
+                  [0, 1, 1],
+                  [-1, 0, 1],
+                  [0, -1, 1],
+                  [-1, -1, math.sqrt(2)],
+                  [-1, 1, math.sqrt(2)],
+                  [1, -1, math.sqrt(2)],
+                  [1, 1, math.sqrt(2)]]
+
+        return motion
+
+    
+    @staticmethod
+    def calc_heuristic(n1, n2):
+        w = 1.0  # weight of heuristic
+        d = w * math.hypot(n1.x - n2.x, n1.y - n2.y)
+        return d
+
+    def calc_grid_index(self, node):
+        return (node.y - self.min_y) * self.x_width + (node.x - self.min_x)
+
+    def calc_grid_position(self, index, min_position):
+        """
+        calc grid position
+
+        :param index:
+        :param min_position:
+        :return:
+        """
+        pos = index + min_position
+        return pos
+
+    def calc_xy_index(self, position, min_pos):
+        return round(position - min_pos) 
+    
+    def verify_node(self, node):
+        px = self.calc_grid_position(node.x, self.min_x)
+        py = self.calc_grid_position(node.y, self.min_y)
+
+        if px < self.min_x:
+            return False
+        elif py < self.min_y:
+            return False
+        elif px >= self.max_x:
+            return False
+        elif py >= self.max_y:
+            return False
+
+        # collision check
+        if self.obstacle_map[node.x][node.y]: 
+            return False
+        return True
+
+    def calc_final_path(self, goal_node, closed_set):
+        # generate final course
+        rx, ry = [self.calc_grid_position(goal_node.x, self.min_x)], [
+            self.calc_grid_position(goal_node.y, self.min_y)]
+        parent_index = goal_node.parent_index
+        while parent_index != -1:
+            n = closed_set[parent_index]
+            rx.append(self.calc_grid_position(n.x, self.min_x))
+            ry.append(self.calc_grid_position(n.y, self.min_y))
+            parent_index = n.parent_index
+
+        return rx, ry
+    
+    def set_goals(self, sx, sy, gx, gy):
+        self.sx = sx
+        self.sy = sy
+        self.gx = gx
+        self.gy = gy
+        
+    def planning(self, sx=None, sy=None, gx=None, gy=None):
         """
         A star path search
 
@@ -65,7 +331,14 @@ class AStarPlanner:
             rx: x position list of the final path
             ry: y position list of the final path
         """
-
+        if sx is None:
+            sx = self.sx
+            sy = self.sy
+            gx = self.gx
+            gy = self.gy
+        else:
+            self.set_goals(self, sx, sy, gx, gy)
+        
         start_node = self.Node(self.calc_xy_index(sx, self.min_x),
                                self.calc_xy_index(sy, self.min_y), 0.0, -1)
         goal_node = self.Node(self.calc_xy_index(gx, self.min_x),
@@ -75,6 +348,7 @@ class AStarPlanner:
         open_set[self.calc_grid_index(start_node)] = start_node
 
         while 1:
+            
             if len(open_set) == 0:
                 print("Open set is empty..")
                 break
@@ -85,17 +359,15 @@ class AStarPlanner:
                                                                      open_set[
                                                                          o]))
             current = open_set[c_id]
-
+            
             # show graph
-            if show_animation:  # pragma: no cover
-                plt.plot(self.calc_grid_position(current.x, self.min_x),
-                         self.calc_grid_position(current.y, self.min_y), "xc")
-                # for stopping simulation with the esc key.
-                plt.gcf().canvas.mpl_connect('key_release_event',
-                                             lambda event: [exit(
-                                                 0) if event.key == 'escape' else None])
-                if len(closed_set.keys()) % 10 == 0:
-                    plt.pause(0.001)
+            if self.show_animation:  # pragma: no cover
+#                 sub_plt = plt.plot(self.calc_grid_position(current.x, self.min_x),
+#                          self.calc_grid_position(current.y, self.min_y), "xc")
+#                 self.plts.append(sub_plt)
+                self.x_plts.append(self.calc_grid_position(current.x, self.min_x))
+                self.y_plts.append(self.calc_grid_position(current.y, self.min_y))
+
 
             if current.x == goal_node.x and current.y == goal_node.y:
                 print("Find goal")
@@ -108,7 +380,7 @@ class AStarPlanner:
 
             # Add it to the closed set
             closed_set[c_id] = current
-
+            
             # expand_grid search grid based on motion model
             for i, _ in enumerate(self.motion):
                 node = self.Node(current.x + self.motion[i][0],
@@ -129,157 +401,23 @@ class AStarPlanner:
                     if open_set[n_id].cost > node.cost:
                         # This path is the best until now. record it
                         open_set[n_id] = node
+                  #      print('ID: {} \n Best path set: {}'.format(n_id,open_set[n_id]))
 
-        rx, ry = self.calc_final_path(goal_node, closed_set)
+            
+        self.rx, self.ry = self.calc_final_path(goal_node, closed_set)
+        
+        if self.show_animation:
+            self.anim = self.create_animation()
 
-        return rx, ry
+        return self.rx, self.ry
+    
+    class Node:
+        def __init__(self, x, y, cost, parent_index):
+            self.x = x  # index of grid
+            self.y = y  # index of grid
+            self.cost = cost
+            self.parent_index = parent_index
 
-    def calc_final_path(self, goal_node, closed_set):
-        # generate final course
-        rx, ry = [self.calc_grid_position(goal_node.x, self.min_x)], [
-            self.calc_grid_position(goal_node.y, self.min_y)]
-        parent_index = goal_node.parent_index
-        while parent_index != -1:
-            n = closed_set[parent_index]
-            rx.append(self.calc_grid_position(n.x, self.min_x))
-            ry.append(self.calc_grid_position(n.y, self.min_y))
-            parent_index = n.parent_index
-
-        return rx, ry
-
-    @staticmethod
-    def calc_heuristic(n1, n2):
-        w = 1.0  # weight of heuristic
-        d = w * math.hypot(n1.x - n2.x, n1.y - n2.y)
-        return d
-
-    def calc_grid_position(self, index, min_position):
-        """
-        calc grid position
-
-        :param index:
-        :param min_position:
-        :return:
-        """
-        pos = index * self.resolution + min_position
-        return pos
-
-    def calc_xy_index(self, position, min_pos):
-        return round((position - min_pos) / self.resolution)
-
-    def calc_grid_index(self, node):
-        return (node.y - self.min_y) * self.x_width + (node.x - self.min_x)
-
-    def verify_node(self, node):
-        px = self.calc_grid_position(node.x, self.min_x)
-        py = self.calc_grid_position(node.y, self.min_y)
-
-        if px < self.min_x:
-            return False
-        elif py < self.min_y:
-            return False
-        elif px >= self.max_x:
-            return False
-        elif py >= self.max_y:
-            return False
-
-        # collision check
-        if self.obstacle_map[node.x][node.y]:
-            return False
-
-        return True
-
-    def calc_obstacle_map(self, ox, oy):
-
-        self.min_x = round(min(ox))
-        self.min_y = round(min(oy))
-        self.max_x = round(max(ox))
-        self.max_y = round(max(oy))
-        print("min_x:", self.min_x)
-        print("min_y:", self.min_y)
-        print("max_x:", self.max_x)
-        print("max_y:", self.max_y)
-
-        self.x_width = round((self.max_x - self.min_x) / self.resolution)
-        self.y_width = round((self.max_y - self.min_y) / self.resolution)
-        print("x_width:", self.x_width)
-        print("y_width:", self.y_width)
-
-        # obstacle map generation
-        self.obstacle_map = [[False for _ in range(self.y_width)]
-                             for _ in range(self.x_width)]
-        for ix in range(self.x_width):
-            x = self.calc_grid_position(ix, self.min_x)
-            for iy in range(self.y_width):
-                y = self.calc_grid_position(iy, self.min_y)
-                for iox, ioy in zip(ox, oy):
-                    d = math.hypot(iox - x, ioy - y)
-                    if d <= self.rr:
-                        self.obstacle_map[ix][iy] = True
-                        break
-
-    @staticmethod
-    def get_motion_model():
-        # dx, dy, cost
-        motion = [[1, 0, 1],
-                  [0, 1, 1],
-                  [-1, 0, 1],
-                  [0, -1, 1],
-                  [-1, -1, math.sqrt(2)],
-                  [-1, 1, math.sqrt(2)],
-                  [1, -1, math.sqrt(2)],
-                  [1, 1, math.sqrt(2)]]
-
-        return motion
-
-
-def main():
-    print(__file__ + " start!!")
-
-    # start and goal position
-    sx = 10.0  # [m]
-    sy = 10.0  # [m]
-    gx = 50.0  # [m]
-    gy = 50.0  # [m]
-    grid_size = 2.0  # [m]
-    robot_radius = 1.0  # [m]
-
-    # set obstacle positions
-    ox, oy = [], []
-    for i in range(-10, 60):
-        ox.append(i)
-        oy.append(-10.0)
-    for i in range(-10, 60):
-        ox.append(60.0)
-        oy.append(i)
-    for i in range(-10, 61):
-        ox.append(i)
-        oy.append(60.0)
-    for i in range(-10, 61):
-        ox.append(-10.0)
-        oy.append(i)
-    for i in range(-10, 40):
-        ox.append(20.0)
-        oy.append(i)
-    for i in range(0, 40):
-        ox.append(40.0)
-        oy.append(60.0 - i)
-
-    if show_animation:  # pragma: no cover
-        plt.plot(ox, oy, ".k")
-        plt.plot(sx, sy, "og")
-        plt.plot(gx, gy, "xb")
-        plt.grid(True)
-        plt.axis("equal")
-
-    a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
-    rx, ry = a_star.planning(sx, sy, gx, gy)
-
-    if show_animation:  # pragma: no cover
-        plt.plot(rx, ry, "-r")
-        plt.pause(0.001)
-        plt.show()
-
-
-if __name__ == '__main__':
-    main()
+        def __str__(self):
+            return str(self.x) + "," + str(self.y) + "," + str(
+                self.cost) + "," + str(self.parent_index)
