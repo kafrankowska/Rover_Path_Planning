@@ -8,11 +8,13 @@ import os
 from IPython.display import HTML
 from matplotlib import animation
 from time import time
+import pandas as pd
+
 
 class AStarPlanner:
 
     def __init__(self, resolution, rr, obstacle_map= None, 
-                 show_animation=True, step=50, export_imgs=True, out_path='../dataset'):
+                 show_animation=True, export_imgs=True, out_path='../dataset', name_idx=None):
         """
         Initialize grid map for a star planning
 
@@ -52,18 +54,29 @@ class AStarPlanner:
             self.rx = None
             self.ry = None
             self.path = None
-            self.step = step
+            self.step = math.ceil(self.x_width/10)
             self.out_path = out_path
             self.export_imgs = export_imgs
+        if name_idx is not None:
+            self.name_idx = name_idx
     
-    def get_statistics(self):
+    def get_statistics(self, export_stats=True):
         stats = {
             'Map width [m]': self.x_width*self.resolution,
             'Map height [m]': self.y_width*self.resolution,
             'Path length [m]': round(self.path_length,2),
             'Execution time [s]': round(self.exec_time,4),
-            'Algorythm iterations [-]': self.iterations
+            'Algorythm iterations [-]': self.iterations,
+            'Name index': self.name_idx,
         }
+        if export_stats:
+            if self.name_idx is not None:
+                name = 'Astar_stats_'+self.name_idx+'.csv'
+                out_path = os.path.join(self.out_path, name)
+            else:
+                out_path = os.path.join(self.out_path, 'Astar_stats.csv')
+            ds = pd.DataFrame(stats, index=[0])
+            ds.to_csv(out_path, index=False)
         return stats
     
     def create_figure(self):
@@ -190,7 +203,11 @@ class AStarPlanner:
             ax.axis("equal")
             
             if self.export_imgs:
-                out_path = os.path.join(self.out_path, 'searched_points.jpeg')
+                if self.name_idx is not None:
+                    name = 'Searched_points_'+self.name_idx+'.jpg'
+                    out_path = os.path.join(self.out_path, name)
+                else:
+                    out_path = os.path.join(self.out_path, 'searched_points.jpeg')
                 plt.savefig(out_path)
         plt.show()
         
@@ -242,7 +259,11 @@ class AStarPlanner:
             ax.axis("equal")
             
             if self.export_imgs:
-                out_path = os.path.join(self.out_path, 'start_end_points.jpeg')
+                if self.name_idx is not None:
+                    name = 'S_E_points_'+self.name_idx+'.jpg'
+                    out_path = os.path.join(self.out_path, name)
+                else:
+                    out_path = os.path.join(self.out_path, 'start_end_points.jpeg')
                 plt.savefig(out_path)
         plt.show()
       
