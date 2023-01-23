@@ -100,9 +100,9 @@ def open_dem(dem_path):
     return dem
 
 
-def plot_mesh(img, export_img=False, out_path='../dataset', name_idx=None, height=20, plot_name=None):
-    xi = np.arange(0, img.shape[0],1) * 0.5 # Grid in meters
-    yi = np.arange(0, img.shape[1],1) * 0.5 # Grid in meters
+def plot_mesh(img, export_img=False, out_path='../dataset', name_idx=None, height=20, plot_name=None, res=1.5):
+    xi = np.arange(0, img.shape[0],1) * res # Grid in meters
+    yi = np.arange(0, img.shape[1],1) * res # Grid in meters
     z = img.flatten() # Height in meters
     Z = img
     X, Y = np.meshgrid(xi, yi)
@@ -146,12 +146,14 @@ def plot_mesh(img, export_img=False, out_path='../dataset', name_idx=None, heigh
         else:
             plot_name = os.path.join(out_path, 'DEM_plot.jpg')
         plt.savefig(plot_name)
+        plt.close()
         return plot_name
-    plt.show()
+    else:
+        plt.show()
     
-def calculate_slope(img, deg=True):
+def calculate_slope(img, deg=True, res=1.5):
     slope = np.zeros_like(img)
-    res = 0.5     # x,y res = 0,5 m
+     # x,y res = 0,5 m
     for x in range(2,img.shape[0]-2):
         for y in range(2,img.shape[1]-2):
           #  mean_xp_axis = img[x+1:x+2,y].mean() 
@@ -175,7 +177,7 @@ def safe_area(safe_slope, thresh=40):
     safe_slope[safe_slope >= thresh] = 255
     return np.array(safe_slope,dtype=np.int8)
 
-def plot_safe_slope(safe_slope, export_img=True, out_path='../dataset', name_idx=None, step=50):
+def plot_safe_slope(safe_slope, export_img=True, out_path='../dataset', name_idx=None, step=50, res=1.5):
     danger_color = (0.6, 0.3, 0.3, 0.6)
     safe_color = (0.1, 0.7, 0.2, 0.1)
     cmp=ListedColormap([danger_color,safe_color])
@@ -194,11 +196,11 @@ def plot_safe_slope(safe_slope, export_img=True, out_path='../dataset', name_idx
         ax.invert_yaxis()
 
         locs_x = (np.arange(0, safe_slope.shape[0], step=step)) 
-        labels_x = locs_x/2
+        labels_x = locs_x*res
         plt.xticks(ticks=locs_x, labels=labels_x)
 
         locs_y = (np.arange(0, safe_slope.shape[1], step=step)) 
-        labels_y = locs_y/2
+        labels_y = locs_y*res
         plt.yticks(ticks=locs_y, labels=labels_y)
         
 
@@ -213,8 +215,10 @@ def plot_safe_slope(safe_slope, export_img=True, out_path='../dataset', name_idx
             else:
                 plot_name = os.path.join(out_path, 'Safe_slope_plot.jpg')
             plt.savefig(plot_name)
+            plt.close()
             return plot_name
-        plt.show()
+        else:
+            plt.show()
         
 def analyze_slope_map(img, export_img=True, out_path='../dataset', name_idx=None, step=50):
     slope = calculate_slope(img)
@@ -222,7 +226,7 @@ def analyze_slope_map(img, export_img=True, out_path='../dataset', name_idx=None
     plot_safe_slope(safe_slope,export_img, out_path=out_path, name_idx=name_idx, step=step)
     
 
-def plot_start_end(img,start,end, export_img=False, out_path='../dataset', name_idx=None, step=50):
+def plot_start_end(img,start,end, export_img=False, out_path='../dataset', name_idx=None, step=50, res=1.5):
 
     danger_color = (0.3, 0.3, 0.3, 0.3)
     safe_color = (0.9, 1, 0.9, 0.1)
@@ -237,10 +241,11 @@ def plot_start_end(img,start,end, export_img=False, out_path='../dataset', name_
 
     
     cmp=ListedColormap([danger_color,safe_color])
+    cmp=ListedColormap([safe_color,danger_color])
     with plt.style.context('ggplot'):
         fig, ax = plt.subplots(figsize=(10,10), dpi=144)
-        xi = np.arange(0, img.shape[0],1) * 0.5 # Grid in meters
-        yi = np.arange(0, img.shape[1],1) * 0.5 # Grid in meters
+        xi = np.arange(0, img.shape[0],1) * res # Grid in meters
+        yi = np.arange(0, img.shape[1],1) * res # Grid in meters
 
         ax.imshow(img, cmap=cmp)
         
@@ -260,11 +265,11 @@ def plot_start_end(img,start,end, export_img=False, out_path='../dataset', name_
         ax.invert_yaxis()
         
         locs_x = (np.arange(0, img.shape[0], step=step)) 
-        labels_x = locs_x/2
+        labels_x = locs_x*res
         plt.xticks(ticks=locs_x, labels=labels_x)
 
         locs_y = (np.arange(0, img.shape[1], step=step)) 
-        labels_y = locs_y/2
+        labels_y = locs_y*res
         plt.yticks(ticks=locs_y, labels=labels_y)
         
             
@@ -276,9 +281,10 @@ def plot_start_end(img,start,end, export_img=False, out_path='../dataset', name_
                 plot_name = os.path.join(out_path, 'Start_end_plot.jpg')
             print(plot_name)
             plt.savefig(plot_name)
+            plt.close()
             return plot_name
-                
-        plt.show()
+        else:
+            plt.show()
 
 def default_exporter(add_test_case=False):
     dem_name = save_dem(img, out_path, name='DEM', name_idx=name_idx)
