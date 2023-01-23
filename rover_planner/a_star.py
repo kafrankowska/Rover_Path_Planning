@@ -111,14 +111,6 @@ class AStarPlanner:
             plt.ylabel("Kierunek Y [m]", fontsize=10)
             self.ax.invert_yaxis()
 
-            locs_x = (np.arange(self.min_x, self.max_x, step=self.step)) 
-            labels_x = locs_x/2
-            plt.xticks(ticks=locs_x, labels=labels_x)
-
-            locs_y = (np.arange(self.min_y, self.max_y, step=self.step)) 
-            labels_y = locs_y/2
-            plt.yticks(ticks=locs_y, labels=labels_y)
-            
             self.pts, = self.ax.plot([], [], 'g.', ms=6)
             self.path, = self.ax.plot([], [], 'r-', ms=8)
 
@@ -131,6 +123,15 @@ class AStarPlanner:
             self.ax.axis("equal")
 
             self.txt_title = self.ax.set_title('')
+            
+            locs_x = (np.arange(self.min_x, self.max_x, step=self.step)) 
+            labels_x = locs_x * self.resolution
+            plt.xticks(ticks=locs_x, labels=labels_x)
+
+            locs_y = (np.arange(self.min_y, self.max_y, step=self.step)) 
+            labels_y = locs_y * self.resolution
+            plt.yticks(ticks=locs_y, labels=labels_y)
+            
 
     def ani_init(self):
         self.pts.set_data([], [])
@@ -183,11 +184,11 @@ class AStarPlanner:
             ax.invert_yaxis()
 
             locs_x = (np.arange(self.min_x, self.max_x, step=self.step)) 
-            labels_x = locs_x/2
+            labels_x = locs_x * self.resolution
             plt.xticks(ticks=locs_x, labels=labels_x)
 
             locs_y = (np.arange(self.min_y, self.max_y, step=self.step)) 
-            labels_y = locs_y/2
+            labels_y = locs_y * self.resolution
             plt.yticks(ticks=locs_y, labels=labels_y)
 
             search_point = ax.plot(self.y_plts, self.x_plts,'g.', ms=6)
@@ -242,11 +243,11 @@ class AStarPlanner:
             ax.invert_yaxis()
 
             locs_x = (np.arange(self.min_x, self.max_x, step=self.step)) 
-            labels_x = locs_x/2
+            labels_x = locs_x * self.resolution
             plt.xticks(ticks=locs_x, labels=labels_x)
 
             locs_y = (np.arange(self.min_y, self.max_y, step=self.step)) 
-            labels_y = locs_y/2
+            labels_y = locs_y * self.resolution
             plt.yticks(ticks=locs_y, labels=labels_y)
 
 
